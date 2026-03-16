@@ -461,17 +461,31 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if intent == "image":
             await update.message.reply_text(f"🖼️ *ছবি তৈরি করছি:* _{query}_\n\n⏳ একটু অপেক্ষা করুন...", parse_mode="Markdown")
             try:
-                image_url = f"https://image.pollinations.ai/prompt/{quote(query)}?width=800&height=600&nologo=true"
-                async with httpx.AsyncClient(timeout=30) as client_http:
-                    r = await client_http.get(image_url)
-                    if r.status_code == 200:
-                        await update.message.reply_photo(
-                            photo=r.content,
-                            caption=f"🖼️ *Generated Image*\n\n_{user_message}_\n\n_Powered by Pollinations AI_",
-                            parse_mode="Markdown"
-                        )
-                    else:
-                        await update.message.reply_text("❌ ছবি তৈরি করতে পারলাম না। আবার চেষ্টা করুন!")
+                encoded = quote(query)
+                seed = abs(hash(query)) % 99999
+                image_url = f"https://image.pollinations.ai/prompt/{encoded}?width=800&height=600&nologo=true&seed={seed}"
+                
+                image_sent = False
+                async with httpx.AsyncClient(timeout=45, follow_redirects=True) as client_http:
+                    try:
+                        r = await client_http.get(image_url)
+                        if r.status_code == 200 and len(r.content) > 5000:
+                            await update.message.reply_photo(
+                                photo=r.content,
+                                caption=f"🖼️ *Generated Image*\n\n_{user_message}_\n\n_Powered by AI_",
+                                parse_mode="Markdown"
+                            )
+                            image_sent = True
+                    except:
+                        pass
+                
+                if not image_sent:
+                    keyboard = [[InlineKeyboardButton("🖼️ ছবি দেখুন", url=image_url)]]
+                    await update.message.reply_text(
+                        f"🖼️ *ছবি তৈরি হয়েছে!*\n\n_{query}_\n\nনিচের বাটনে click করে দেখুন 👇",
+                        parse_mode="Markdown",
+                        reply_markup=InlineKeyboardMarkup(keyboard)
+                    )
             except Exception as e:
                 logger.error(f"Image error: {e}")
                 await update.message.reply_text("❌ ছবি তৈরি করতে পারলাম না। আবার চেষ্টা করুন!")
